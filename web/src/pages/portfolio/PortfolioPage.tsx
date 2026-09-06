@@ -5,6 +5,7 @@ import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import SkillPortfolioCard from "@/components/portfolio/SkillPortfolioCard";
+import NotAssessedPanel from "@/components/portfolio/NotAssessedPanel";
 import { sessionsApi } from "@/services/sessions";
 import { vacanciesApi } from "@/services/vacancies";
 import { portfoliosApi } from "@/services/portfolios";
@@ -232,20 +233,35 @@ export default function PortfolioPage() {
       {/* Ready state */}
       {!generating && portfolio?.generation_status === "complete" && (
         <>
+          {/* Nothing was scored at all — a real outcome now that undiscussed
+              skills are no longer given an invented level. */}
+          {portfolio.skills.length === 0 && (
+            <div className="rounded-lg border border-dashed p-8 text-center" data-testid="portfolio-empty">
+              <p className="font-medium">No skills were scored in this interview</p>
+              <p className="mx-auto mt-1 max-w-md text-sm leading-relaxed text-muted-foreground">
+                The session ended before any skill was covered deeply enough to rate. There is
+                nothing to evaluate here yet — the sections below show what was configured, and
+                the transcript is still available.
+              </p>
+            </div>
+          )}
+
           {/* Configured skills */}
-          <div className="space-y-3">
-            <h2 className="text-sm font-semibold">Configured Skills</h2>
-            {portfolio.skills
-              .filter((s) => !s.is_discovered)
-              .map((skill) => (
-                <SkillPortfolioCard
-                  key={skill.id}
-                  skill={skill}
-                  override={overrides[skill.id]}
-                  onOverrideSaved={(o) => handleOverrideSaved(skill.id, o)}
-                />
-              ))}
-          </div>
+          {portfolio.skills.some((s) => !s.is_discovered) && (
+            <div className="space-y-3">
+              <h2 className="text-sm font-semibold">Configured Skills</h2>
+              {portfolio.skills
+                .filter((s) => !s.is_discovered)
+                .map((skill) => (
+                  <SkillPortfolioCard
+                    key={skill.id}
+                    skill={skill}
+                    override={overrides[skill.id]}
+                    onOverrideSaved={(o) => handleOverrideSaved(skill.id, o)}
+                  />
+                ))}
+            </div>
+          )}
 
           {/* Discovered skills */}
           {portfolio.skills.some((s) => s.is_discovered) && (
@@ -272,6 +288,13 @@ export default function PortfolioPage() {
                     />
                   ))}
               </div>
+            </>
+          )}
+
+          {portfolio.not_assessed && portfolio.not_assessed.length > 0 && (
+            <>
+              <Separator />
+              <NotAssessedPanel skills={portfolio.not_assessed} />
             </>
           )}
 

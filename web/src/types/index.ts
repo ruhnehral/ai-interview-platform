@@ -74,6 +74,15 @@ export interface TranscriptTurn {
   created_at: string;
 }
 
+export interface NotAssessedSkill {
+  skill_id?: string | null;
+  skill_label: string;
+  expected_level?: number | null;
+  coverage_state: string;
+  /** not_discussed = the interview never reached it; no_rating = discussed, but the model gave nothing usable. */
+  reason: "not_discussed" | "no_rating";
+}
+
 export interface Portfolio {
   id: number;
   session_id: number;
@@ -83,6 +92,8 @@ export interface Portfolio {
   generation_error?: string;
   generation_attempts?: number;
   skills: PortfolioSkill[];
+  /** Configured skills that carry no score, with the reason why. */
+  not_assessed?: NotAssessedSkill[];
   overrides: AssessorOverride[];
 }
 

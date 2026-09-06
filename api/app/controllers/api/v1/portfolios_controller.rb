@@ -194,9 +194,30 @@ module Api
           generated_at:      portfolio.generated_at,
           generation_error:  portfolio.generation_error,
           generation_attempts: portfolio.generation_attempts,
+          not_assessed:      not_assessed_json(portfolio),
           skills:            portfolio.portfolio_skills.map(&method(:portfolio_skill_json)),
           overrides:         portfolio.assessor_overrides.map(&method(:override_json))
         }
+      end
+
+      # Configured skills that carry no score, with the reason. Since the generator
+      # stopped fabricating a level for skills the interview never covered, they
+      # would otherwise just disappear from the assessor's screen.
+      def not_assessed_json(portfolio)
+        session = portfolio.session
+        Portfolios::NotAssessedSkills.call(
+          assessment_skills: session.assessment.assessment_skills.order(:display_order),
+          portfolio_skills:  portfolio.portfolio_skills,
+          coverage_maps:     session.coverage_maps
+        ).map do |entry|
+          {
+            skill_id:       entry.skill_id,
+            skill_label:    entry.skill_label,
+            expected_level: entry.expected_level,
+            coverage_state: entry.coverage_state,
+            reason:         entry.reason
+          }
+        end
       end
 
       def portfolio_skill_json(skill)
