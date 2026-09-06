@@ -48,7 +48,9 @@ Step 4 §1 defined the criteria before any code was written. This is the traceab
 | `end_reason: completed` → success; `error` / `timeout` / unrecognised → distinct failure screen, never success | `outcomeFromEndReason` | `interviewOutcome.test.ts` "never reads a missing reason as success", "never reads an unrecognised future reason as success" |
 | Exit dialog: Continue → stays; End → ends normally | `useExitGuard` + `ExitConfirmDialog` | `useExitGuard.test.ts`; `ExitConfirmDialog.test.tsx` |
 | …timer unaffected on Continue | `useExitGuard` never touches `InterviewTimer`; Continue only closes the dialog | **not asserted by a test** — true by construction, verified by reading the diff |
-| UI polish: every state visually distinct, mobile-safe, long text handled | `InterviewCompleteScreen`, `PortfolioPage`, `ExitConfirmDialog` | `InterviewCompleteScreen.test.tsx` (three distinct `data-outcome` states) |
+| UI polish: every state visually distinct, mobile-safe, long text handled | `InterviewCompleteScreen`, `PortfolioPage`, `ExitConfirmDialog`, `StatusBanner` | `InterviewCompleteScreen.test.tsx` (three distinct `data-outcome` states); `StatusBanner.test.tsx` (four tones carried as `data-tone`) |
+| Empty state: a portfolio with zero scored skills is a real outcome now | `PortfolioPage` empty card | not asserted — verified by hand, `data-testid="portfolio-empty"` |
+| A skill dropped for lack of evidence is shown as unknown, not omitted | `Portfolios::NotAssessedSkills` + `NotAssessedPanel` | `not_assessed_skills_spec`; `NotAssessedPanel.test.tsx` |
 
 Two Step 4 criteria have **no automated test** and I would rather say so than pad the table:
 
@@ -65,17 +67,20 @@ Two Step 4 criteria have **no automated test** and I would rather say so than pa
  ✓ src/hooks/__tests__/useExitGuard.test.ts (5 tests)
  ✓ src/components/interview/__tests__/InterviewCompleteScreen.test.tsx (5 tests)
  ✓ src/components/interview/__tests__/ExitConfirmDialog.test.tsx (5 tests)
+ ✓ src/components/interview/__tests__/InterviewTimer.test.tsx (5 tests)
+ ✓ src/components/interview/__tests__/StatusBanner.test.tsx (3 tests)
+ ✓ src/components/portfolio/__tests__/NotAssessedPanel.test.tsx (5 tests)
  ✓ src/lib/__tests__/interviewOutcome.test.ts (8 tests)
 
- Test Files  4 passed (4)
-      Tests  23 passed (23)
+ Test Files  7 passed (7)
+      Tests  36 passed (36)
 ```
 
 Full output: `assessment/step5/evidence/vitest-green.txt`.
 
 ### Backend
 
-Six spec files. Four of them require **no database and no Rails boot at all**, because the logic that decides a hiring outcome was deliberately extracted into plain Ruby objects:
+Seven spec files. Five of them require **no database and no Rails boot at all**, because the logic that decides a hiring outcome was deliberately extracted into plain Ruby objects:
 
 | Spec | Needs a database? | What it guards |
 |---|---|---|
@@ -83,6 +88,7 @@ Six spec files. Four of them require **no database and no Rails boot at all**, b
 | `spec/services/portfolios/skill_payload_spec.rb` | no | the `nil.to_i.clamp(1, 5)` fabrication |
 | `spec/services/portfolios/coverage_lookup_spec.rb` | no | "was this skill actually discussed" |
 | `spec/services/portfolios/skill_selection_spec.rb` | no | the two rules together, plus duplicates and malformed entries |
+| `spec/services/portfolios/not_assessed_skills_spec.rb` | no | which configured skills carry no score, and which of the two reasons applies |
 | `spec/models/portfolio_spec.rb` | yes | stale-generation detection, including pre-migration rows |
 | `spec/services/portfolios/generator_spec.rb` | yes | duplicate jobs, stale reclaim, timeouts, partial writes, PII truncation |
 
@@ -234,6 +240,36 @@ The production code was correct the whole time. The spec was not, and a spec tha
 
 ---
 
+## 5b. The bug the fix created
+
+Worth calling out separately, because it is the part I am most likely to be asked about.
+
+Removing the fabricated L1 was correct and, on its own, made the assessor's screen
+worse. Those skills stopped appearing at all. An assessor looking at a portfolio
+with two scored skills could no longer tell "this candidate is strong and the role
+only has two skills" apart from "three of the five were never asked about." The
+data became right and the screen started lying by omission instead.
+
+The whole point of the P0 was to stop a hiring decision resting on a number nobody
+earned. A silently missing row invites exactly the same mistake from the other
+direction — a reviewer fills the silence with an assumption.
+
+So `Portfolios::NotAssessedSkills` names them, and separates the two cases that
+mean different things to an assessor:
+
+- **`not_discussed`** — the interview never reached this skill. Nothing was
+  learned. Re-interview, or accept the gap in coverage.
+- **`no_rating`** — it *was* discussed, but the model returned nothing it could
+  defend a level with. There is a transcript to read. This one is on the AI, not
+  on the candidate.
+
+`NotAssessedPanel` shows both with the level the role expected, and says outright
+that these are gaps in the interview and not in the candidate.
+
+A portfolio can also legitimately have zero scored skills now, which used to be
+practically impossible. That case used to render as a heading with nothing under
+it; it has a real empty state.
+
 ## 6. Designed failure paths
 
 | Failure | What happens now |
@@ -270,8 +306,9 @@ Stated up front rather than discovered in review:
 1. **`useExitGuard` leaves its sentinel history entry behind.** After the interview finishes, the candidate may need one extra back press to leave the page. Popping it automatically risks navigating them somewhere unintended, so I left it — a nuisance, on a screen that is finished anyway.
 2. **The local timer's `time_ceiling` is a display reason.** When the client-side timer expires, the completion screen says "Time is up" while the backend records `manual_candidate` for that path. The candidate is told the truth; the backend's own `time_ceiling` path is unchanged. Making the two agree means sending a reason on `end_session`, which is a backend protocol change I did not want inside a P0 fix.
 3. **`useAudioWebSocket` itself has no test.** It needs a WebSocket harness that does not exist in this repo yet. The logic it feeds is fully tested; the wiring is not, which is exactly how bug 5.1 got as far as it did.
-4. **The sanitizer holds back any unclosed `{`, not only a metadata one.** A candidate who says something with a stray opening brace has that turn delayed until the 600-character cap releases it. The cap makes the worst case bounded and short, but it is a trade-off, not a free win.
-5. **No CI pipeline.** The suites run locally with one command each. Wiring GitHub Actions is the obvious next commit and did not fit this cycle.
+4. **Neither the empty state nor "timer unaffected on Continue" is covered by a test.** Both are verified by hand and by reading the diff. Rendering `PortfolioPage` in a test needs three API mocks; it was not worth it for a branch this size, and I would rather say so than imply coverage I do not have.
+5. **The sanitizer holds back any unclosed `{`, not only a metadata one.** A candidate who says something with a stray opening brace has that turn delayed until the 600-character cap releases it. The cap makes the worst case bounded and short, but it is a trade-off, not a free win.
+6. **No CI pipeline.** The suites run locally with one command each. Wiring GitHub Actions is the obvious next commit and did not fit this cycle.
 
 ---
 

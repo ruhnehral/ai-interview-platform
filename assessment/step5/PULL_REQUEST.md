@@ -18,6 +18,8 @@ Everything here comes straight from the Step 3 findings and the Step 4 chosen op
 | 5 | Coverage JSON leaks into the transcript | Internal/Candidate **P2** | A — brace-depth aware sanitizer | ✅ shipped |
 | — | `save_skills` has no transaction | Internal **P1** | (folded into #1) | ✅ shipped |
 | — | Transcript panel doesn't auto-scroll | Candidate **P2** | UI polish clause in Step 4 §1 | ✅ shipped |
+| — | Scored skills vanish from the assessor's screen (created by fix #1) | follow-on | name them explicitly instead of omitting them | ✅ shipped |
+| — | Candidate screen UI/UX below the bar the brief sets | Monozukuri clause | extend the design system, rework the screen | ✅ shipped |
 | 2 | No role separation between internal personas | Internal **P0** | A — real roles, deferred | ⏸ design only (Step 4 §3) |
 | 6 | No data delete/retention path | **P1** | A — soft delete, deferred | ⏸ design only (Step 4 §3) |
 | 7 | Vacancy has no employment type / deadline | **P3** | A — enum + date, deferred | ⏸ design only (Step 4 §3) |
@@ -100,6 +102,31 @@ Gemini routinely splits one payload across two transcription chunks, so the seco
 
 Choosing Continue leaves the session and the timer completely untouched — the guard never touches `InterviewTimer`. Full session *resume* is deliberately out of scope — Step 4, Option B under "No exit guard".
 
+### Web — naming what was not assessed
+
+Removing the fabricated L1 made those skills disappear from the assessor's screen
+entirely. Correct data, new lie: two scored skills out of five reads as a short
+portfolio, not as an incomplete interview.
+
+`Portfolios::NotAssessedSkills` lists the configured skills with no score and
+separates **`not_discussed`** (the interview never reached it) from **`no_rating`**
+(it was discussed, but the model returned nothing defensible). `NotAssessedPanel`
+renders them with the level the role expected and says outright that these are gaps
+in the interview, not in the candidate. `PortfolioPage` also gets a real empty state
+— zero scored skills is a genuine outcome after this change.
+
+### Web — candidate screen and design system
+
+The candidate screen carries the product's first impression and was the least
+designed surface in the app. Semantic status tokens (`success` / `warning` /
+`danger` / `info`, each with a subtle background and border) are now defined once
+for both themes and registered in Tailwind, replacing hardcoded `green-600` /
+`amber-50` / `red-200` across the candidate and portfolio flows — one meaning, one
+appearance, and it follows the theme. `StatusBanner` replaces three duplicated
+banner blocks. `InterviewTimer` is a countdown ring plus digits, where colour is
+never the only signal. Plus `pb-safe` for the iOS home indicator and a
+`motion-safe-only` utility honouring `prefers-reduced-motion`.
+
 ### Web — assessor portfolio states (`feat(web): surface stalled and failed generation…`)
 
 The page polled every 5s forever whenever status was `generating`. A stalled generation now has its own state with a plain explanation and a retry, polling stops once the server says nothing is running, and the failed state shows the recorded reason and the attempt number.
@@ -109,8 +136,8 @@ The page polled every 5s forever whenever status was `generating`. A stalled gen
 ## Tests
 
 ```
-web:  npm test        → 4 files, 23 tests passing
-api:  bundle exec rspec → 6 spec files (3 run with no database at all)
+web:  npm test          → 7 files, 36 tests passing
+api:  bundle exec rspec → 7 spec files (5 run with no database at all)
 ```
 
 Every P0 rule has a test that fails when the rule is removed — proven on `chore/seeded-fault-proof`, with the captured output in `assessment/step5/evidence/`.
