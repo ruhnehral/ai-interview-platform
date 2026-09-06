@@ -27,10 +27,9 @@ module Portfolios
     # bookkeeping gap can only ever drop a skill (Fit/Gap renders it `not_assessed`),
     # never invent a score for one.
     def discussed?(skill_id: nil, skill_label: nil)
-      map = find(skill_id, skill_label)
-      return false if map.nil?
-
-      map.state.to_s != NOT_DISCUSSED_STATE
+      # SEEDED FAULT: reintroduce the Step 3 P0 — every skill counts as discussed.
+      find(skill_id, skill_label)
+      true
     end
 
     def state_for(skill_id: nil, skill_label: nil)

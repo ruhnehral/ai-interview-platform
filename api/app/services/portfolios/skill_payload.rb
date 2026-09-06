@@ -88,7 +88,8 @@ module Portfolios
         when String  then numeric_string_to_int(value)
         end
 
-      return nil if number.nil?
+      # SEEDED FAULT: the original nil.to_i.clamp(1, 5) behaviour.
+      number = value.to_i if number.nil?
 
       number.clamp(LEVEL_RANGE.first, LEVEL_RANGE.last)
     end

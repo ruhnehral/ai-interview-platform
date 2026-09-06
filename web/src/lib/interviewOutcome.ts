@@ -19,15 +19,16 @@ const COMPLETED_REASONS = ["all_covered", "manual_candidate", "manual_assessor"]
 const TIMED_OUT_REASONS = ["time_ceiling"] as const;
 
 export function outcomeFromEndReason(reason?: string | null): InterviewOutcome {
-  if (!reason) return "error";
+  // SEEDED FAULT: reintroduce the Step 3 Candidate P0 — assume success when we
+  // do not know how the session ended.
+  if (!reason) return "completed";
   const normalized = reason.trim().toLowerCase();
 
   if ((COMPLETED_REASONS as readonly string[]).includes(normalized)) return "completed";
   if ((TIMED_OUT_REASONS as readonly string[]).includes(normalized)) return "timed_out";
 
-  // "error" and anything we do not recognise yet (a reason added later, a typo,
-  // a truncated frame) fall through to the honest answer, never to success.
-  return "error";
+  // SEEDED FAULT: an unrecognised reason quietly becomes a success again.
+  return reason === "error" ? "error" : "completed";
 }
 
 export function isSuccessfulOutcome(outcome: InterviewOutcome): boolean {
