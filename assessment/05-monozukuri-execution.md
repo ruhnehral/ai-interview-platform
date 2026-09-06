@@ -2,7 +2,7 @@
 
 Step 3 found the problems, Step 4 chose the options. This step is the execution proof: what landed, how I know it works, and where AI-generated code was wrong.
 
-**PR:** Option A — one comprehensive PR across `api` and `web`, branch `feat/step5-monozukuri`.
+**PR:** Option A — one comprehensive PR across `api` and `web`, branch `feat/product-revamp`.
 **Seeded fault:** scratch branch `chore/seeded-fault-proof` — fault commit and revert commit both in history.
 
 ---
@@ -179,7 +179,7 @@ Full output: `assessment/step5/evidence/seeded-fault-backend-logic.txt`.
 6af2d58 chore(test): commit the lockfile for the new dev dependencies
 ```
 
-The fault never touched `feat/step5-monozukuri`: `git diff feat/step5-monozukuri chore/seeded-fault-proof` is empty after the revert.
+The fault never touched `feat/product-revamp`: `git diff feat/product-revamp chore/seeded-fault-proof` is empty after the revert.
 
 ---
 

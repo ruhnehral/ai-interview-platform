@@ -148,8 +148,8 @@ nothing else.
 ## Just reading the change
 
 ```bash
-git log --oneline main..feat/step5-monozukuri
-git diff main..feat/step5-monozukuri
+git log --oneline main..feat/product-revamp
+git diff main..feat/product-revamp
 git log --oneline chore/seeded-fault-proof   # the fault + its revert
 ```
 

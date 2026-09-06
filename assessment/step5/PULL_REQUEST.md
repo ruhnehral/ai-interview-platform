@@ -1,6 +1,6 @@
 # Step 5 — Monozukuri implementation
 
-**Branch:** `feat/step5-monozukuri` → `main`
+**Branch:** `feat/product-revamp` → `main`
 **Structure:** Option A — one comprehensive PR across both services.
 **Scratch branch with the seeded fault:** `chore/seeded-fault-proof` (fault commit + revert commit, both visible).
 
