@@ -9,9 +9,16 @@ Step 3 found the problems, Step 4 chose the options. This step is the execution 
 
 ## 1. Commit history
 
-The branch, each commit reviewable on its own (this document is committed on top):
+The branch, each commit reviewable on its own (docs are committed on top):
 
 ```
+c32deaa docs(step5): refresh seeded-fault evidence after the not-assessed and UI commits
+d4b288c docs(step5): fold the not-assessed panel and the UI rework into the execution proof
+947e491 docs(step2): add product context and domain immersion
+cdcb283 feat(web): rework the candidate interview screen and extend the design system
+178f85f feat: name the skills the interview never assessed
+38183e7 docs(step5): add a runbook for setting the branch up on another machine
+feb301c docs(step5): refresh commit list and captured green test run
 d6c64e5 fix(step5): review pass — spec kwargs, stale window, duplicate create, doc accuracy
 262cbae docs(step5): add monozukuri execution proof and PR description
 64f9ebf docs(step5): add seeded-fault script and captured test evidence
