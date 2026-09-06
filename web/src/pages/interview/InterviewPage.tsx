@@ -1,29 +1,23 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
 import VoiceBars from "@/components/interview/VoiceBars";
 import InterviewTimer from "@/components/interview/InterviewTimer";
 import ConnectionStatus from "@/components/interview/ConnectionStatus";
 import TranscriptBubble from "@/components/interview/TranscriptBubble";
 import InterviewCompleteScreen from "@/components/interview/InterviewCompleteScreen";
+import ExitConfirmDialog, { type ExitPromptSource } from "@/components/interview/ExitConfirmDialog";
 import { useAudioCapture } from "@/hooks/useAudioCapture";
 import { useAudioPlayback } from "@/hooks/useAudioPlayback";
 import { useAudioWebSocket } from "@/hooks/useAudioWebSocket";
+import { useExitGuard } from "@/hooks/useExitGuard";
 import { sessionsApi } from "@/services/sessions";
 import HardwareCheck from "@/components/HardwareCheck";
 import { CheckCircle, Mic, MicOff } from "lucide-react";
 import type { CandidateInfo, InterviewState, InterviewSpeaker, TranscriptTurn } from "@/types";
+
+/** States where the candidate has something to lose by navigating away. */
+const IN_PROGRESS_STATES: InterviewState[] = ["connecting", "active", "reconnecting"];
 
 export default function InterviewPage() {
   const { token } = useParams<{ token: string }>();
@@ -45,6 +39,9 @@ export default function InterviewPage() {
   // as success (Step 3, Candidate P0).
   const [endReason, setEndReason] = useState<string | undefined>(undefined);
   const [endMessage, setEndMessage] = useState<string | undefined>(undefined);
+
+  // Which flow opened the exit dialog: the back button, or the End Interview button.
+  const [exitPrompt, setExitPrompt] = useState<ExitPromptSource | null>(null);
 
   const transcriptEndRef = useRef<HTMLDivElement | null>(null);
 
@@ -202,6 +199,7 @@ export default function InterviewPage() {
   }, [sessionId, connect, startCapture]);
 
   const endInterview = useCallback(async (reason: string = "manual_candidate") => {
+    setExitPrompt(null);
     setEndReason((current) => current ?? reason);
     setInterviewState("ending");
     if (reconnectedPromptTimerRef.current) clearTimeout(reconnectedPromptTimerRef.current);
@@ -211,6 +209,14 @@ export default function InterviewPage() {
     disconnect();
     setInterviewState("complete");
   }, [stopCapture, stopPlayback, sendJson, disconnect]);
+
+  const interviewInProgress = IN_PROGRESS_STATES.includes(interviewState);
+
+  const handleAttemptExit = useCallback(() => {
+    setExitPrompt((current) => current ?? "navigation");
+  }, []);
+
+  useExitGuard({ enabled: interviewInProgress, onAttemptExit: handleAttemptExit });
 
   const wsConnectionStatus =
     interviewState === "reconnecting"
@@ -238,7 +244,7 @@ export default function InterviewPage() {
               <p>• This is a voice interview. Make sure you're in a quiet place.</p>
               <p>• The AI will ask follow-up questions — there are no scripts.</p>
               <p>• The session will last up to {candidateInfo?.time_limit_min ?? "—"} minutes.</p>
-              <p>• Your mic will be active throughout. You can end anytime.</p>
+              <p>• You get one attempt: once you leave or end the session, it can't be resumed.</p>
             </div>
             <HardwareCheck onStart={() => { setHardwareCheckDone(true); startInterview(); }} />
           </div>
@@ -365,23 +371,9 @@ export default function InterviewPage() {
             )}
           </Button>
 
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button variant="outline" size="sm">End Interview</Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>End interview?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  Are you sure you want to end the interview early?
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction onClick={() => endInterview("manual_candidate")}>End interview</AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
+          <Button variant="outline" size="sm" onClick={() => setExitPrompt("manual")}>
+            End Interview
+          </Button>
 
           {import.meta.env.DEV && (
             <Button variant="outline" size="sm" className="text-xs opacity-50"
@@ -391,6 +383,13 @@ export default function InterviewPage() {
           )}
         </div>
       </div>
+
+      <ExitConfirmDialog
+        open={exitPrompt !== null}
+        source={exitPrompt ?? "manual"}
+        onContinue={() => setExitPrompt(null)}
+        onEnd={() => endInterview("manual_candidate")}
+      />
     </div>
   );
 }
