@@ -9,9 +9,11 @@ Step 3 found the problems, Step 4 chose the options. This step is the execution 
 
 ## 1. Commit history
 
-Eight commits, each one reviewable on its own:
+The branch, each commit reviewable on its own (this document is committed on top):
 
 ```
+d6c64e5 fix(step5): review pass — spec kwargs, stale window, duplicate create, doc accuracy
+262cbae docs(step5): add monozukuri execution proof and PR description
 64f9ebf docs(step5): add seeded-fault script and captured test evidence
 6af2d58 chore(test): commit the lockfile for the new dev dependencies
 1fb6cd5 feat(web): surface stalled and failed generation on the portfolio screen
