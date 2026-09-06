@@ -4,8 +4,10 @@ class Portfolio < ApplicationRecord
   GENERATION_STATUSES = %w[pending generating complete failed].freeze
 
   # A `generating` row older than this belongs to a worker that died mid-run.
-  # Generous enough to cover the 180s Gemini timeout plus Sidekiq's retry backoff.
-  STALE_GENERATION_AFTER = 10.minutes
+  # Must comfortably exceed the worst case of a LIVE attempt, or we would hand a
+  # second worker a row that is still being written. Gemini::HttpClient allows up
+  # to 4 attempts at a 180s timeout plus backoff (~12 minutes), so 20 leaves room.
+  STALE_GENERATION_AFTER = 20.minutes
 
   belongs_to :session
   has_many :portfolio_skills, dependent: :destroy

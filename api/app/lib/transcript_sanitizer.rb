@@ -31,7 +31,9 @@ module TranscriptSanitizer
   ].freeze
 
   # Safety valve: if an object never closes we must not swallow real speech forever.
-  MAX_PENDING_CHARS = 2_000
+  # A coverage payload is a few hundred characters at most, so this is generous for
+  # a real payload and short enough that a stray "{" in speech barely delays a turn.
+  MAX_PENDING_CHARS = 600
 
   TAGGED_BLOCK_PATTERNS = [
     %r{\[COVERAGE[_ ]MAP\][\s\S]*?\[/COVERAGE[_ ]MAP\]}m,
@@ -173,12 +175,6 @@ module TranscriptSanitizer
 
     def pending?
       !@pending.empty?
-    end
-
-    def flush
-      remaining = @pending
-      @pending = +''
-      TranscriptSanitizer.call(remaining)
     end
   end
 end

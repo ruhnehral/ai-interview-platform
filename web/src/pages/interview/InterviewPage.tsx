@@ -16,8 +16,17 @@ import HardwareCheck from "@/components/HardwareCheck";
 import { CheckCircle, Mic, MicOff } from "lucide-react";
 import type { CandidateInfo, InterviewState, InterviewSpeaker, TranscriptTurn } from "@/types";
 
-/** States where the candidate has something to lose by navigating away. */
-const IN_PROGRESS_STATES: InterviewState[] = ["connecting", "active", "reconnecting"];
+/**
+ * States where the candidate still has something to lose by navigating away.
+ * `draining_audio` is included on purpose: it can last up to 10s while the AI
+ * finishes speaking, and leaving during it skips the audio_complete call.
+ */
+const IN_PROGRESS_STATES: InterviewState[] = [
+  "connecting",
+  "active",
+  "reconnecting",
+  "draining_audio",
+];
 
 export default function InterviewPage() {
   const { token } = useParams<{ token: string }>();

@@ -1,18 +1,23 @@
 # frozen_string_literal: true
 
 require 'spec_helper'
-require_relative '../../../app/services/portfolios/coverage_lookup'
+# When the whole suite runs, Rails is already booted and Zeitwerk owns these
+# constants. Only load them by hand for the database-free subset.
+unless defined?(Rails)
+  require_relative '../../../app/services/portfolios/coverage_lookup'
+end
 
 RSpec.describe Portfolios::CoverageLookup do
   # Duck-typed on purpose — the real CoverageMap rows are not needed to test the rule.
-  FakeCoverage = Struct.new(:skill_id, :skill_label, :state)
+  # Scoped with `let` so the spec does not define a top-level constant.
+  let(:fake) { Struct.new(:skill_id, :skill_label, :state) }
 
   let(:maps) do
     [
-      FakeCoverage.new('sk-eng-001', 'React / Frontend Development', 'covered'),
-      FakeCoverage.new('sk-eng-002', 'System Design', 'not_yet'),
-      FakeCoverage.new('sk-eng-003', 'Testing Discipline', 'partial'),
-      FakeCoverage.new(nil, 'Micro-frontend Architecture', 'initiated')
+      fake.new('sk-eng-001', 'React / Frontend Development', 'covered'),
+      fake.new('sk-eng-002', 'System Design', 'not_yet'),
+      fake.new('sk-eng-003', 'Testing Discipline', 'partial'),
+      fake.new(nil, 'Micro-frontend Architecture', 'initiated')
     ]
   end
 

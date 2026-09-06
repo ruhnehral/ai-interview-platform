@@ -3,21 +3,16 @@
 require 'rails_helper'
 
 RSpec.describe Portfolios::Generator do
-  # Stands in for Gemini::HttpClient. Never hits the network.
-  class FakeGeminiClient
-    attr_reader :calls
-
-    def initialize(response: nil, error: nil)
-      @response = response
-      @error    = error
-      @calls    = 0
-    end
-
-    def generate_content(_prompt, **_options)
-      @calls += 1
-      raise @error if @error
-
-      @response
+  # Verified double instead of a hand-rolled fake: RSpec checks that
+  # Gemini::HttpClient really does respond to generate_content with this signature,
+  # so the spec cannot drift away from the real client. Nothing hits the network.
+  def fake_client(response: nil, error: nil)
+    instance_double(Gemini::HttpClient).tap do |client|
+      if error
+        allow(client).to receive(:generate_content).and_raise(error)
+      else
+        allow(client).to receive(:generate_content).and_return(response)
+      end
     end
   end
 
@@ -48,7 +43,7 @@ RSpec.describe Portfolios::Generator do
 
   describe 'skills that were never discussed' do
     it 'does not persist a score for a skill with coverage state not_yet' do
-      client = FakeGeminiClient.new(response: gemini_response([
+      client = fake_client(response: gemini_response([
         skill,
         skill('skill_id' => 'sk-eng-002', 'skill_label' => 'System Design', 'level' => 2)
       ]))
@@ -60,7 +55,7 @@ RSpec.describe Portfolios::Generator do
     end
 
     it 'persists nothing at all when the model rated only undiscussed skills' do
-      client = FakeGeminiClient.new(response: gemini_response([
+      client = fake_client(response: gemini_response([
         skill('skill_id' => 'sk-eng-002', 'skill_label' => 'System Design', 'level' => nil)
       ]))
 
@@ -75,22 +70,22 @@ RSpec.describe Portfolios::Generator do
     it 'ignores a second run while a fresh attempt is still in flight' do
       portfolio = create(:portfolio, session: session, generation_status: 'generating',
                                      generation_started_at: Time.current)
-      client = FakeGeminiClient.new(response: gemini_response([skill]))
+      client = fake_client(response: gemini_response([skill]))
 
       described_class.new(session: session, gemini_client: client).call
 
-      expect(client.calls).to eq(0)
+      expect(client).not_to have_received(:generate_content)
       expect(portfolio.reload.generation_status).to eq('generating')
     end
 
     it 'reclaims a generating row whose worker died, instead of leaving it stuck' do
       portfolio = create(:portfolio, session: session, generation_status: 'generating',
                                      generation_started_at: 1.hour.ago, generation_attempts: 1)
-      client = FakeGeminiClient.new(response: gemini_response([skill]))
+      client = fake_client(response: gemini_response([skill]))
 
       described_class.new(session: session, gemini_client: client).call
 
-      expect(client.calls).to eq(1)
+      expect(client).to have_received(:generate_content).once
       expect(portfolio.reload).to be_complete
       expect(portfolio.generation_attempts).to eq(2)
     end
@@ -98,7 +93,7 @@ RSpec.describe Portfolios::Generator do
 
   describe 'failure paths' do
     it 'marks the portfolio failed and re-raises when the model times out' do
-      client = FakeGeminiClient.new(error: Gemini::HttpClient::TimeoutError.new('Gemini API timeout after 180s'))
+      client = fake_client(error: Gemini::HttpClient::TimeoutError.new('Gemini API timeout after 180s'))
 
       expect { described_class.new(session: session, gemini_client: client).call }
         .to raise_error(Gemini::HttpClient::TimeoutError)
@@ -109,7 +104,7 @@ RSpec.describe Portfolios::Generator do
     end
 
     it 'fails with a generic reason when the model returns something that is not JSON' do
-      client = FakeGeminiClient.new(response: 'Sure! Here is the portfolio: <not json>')
+      client = fake_client(response: 'Sure! Here is the portfolio: <not json>')
 
       expect { described_class.new(session: session, gemini_client: client).call }
         .to raise_error(Portfolios::Generator::MalformedResponseError)
@@ -120,7 +115,7 @@ RSpec.describe Portfolios::Generator do
     # UU PDP: whatever we persist must not carry transcript or candidate quotes.
     it 'truncates the persisted error so a model error cannot leak transcript text' do
       leaky = 'Candidate said: ' + ('a' * 5_000)
-      client = FakeGeminiClient.new(error: StandardError.new(leaky))
+      client = fake_client(error: StandardError.new(leaky))
 
       expect { described_class.new(session: session, gemini_client: client).call }
         .to raise_error(StandardError)
@@ -137,7 +132,7 @@ RSpec.describe Portfolios::Generator do
         evidence: [], competency_summary: 'Previous run.'
       )
 
-      client = FakeGeminiClient.new(response: gemini_response([skill]))
+      client = fake_client(response: gemini_response([skill]))
       allow_any_instance_of(PortfolioSkill).to receive(:save!)
         .and_raise(ActiveRecord::RecordInvalid.new(PortfolioSkill.new))
 

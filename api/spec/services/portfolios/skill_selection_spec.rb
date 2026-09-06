@@ -1,20 +1,26 @@
 # frozen_string_literal: true
 
 require 'spec_helper'
-require_relative '../../../app/services/portfolios/skill_payload'
-require_relative '../../../app/services/portfolios/coverage_lookup'
-require_relative '../../../app/services/portfolios/skill_selection'
+# When the whole suite runs, Rails is already booted and Zeitwerk owns these
+# constants. Only load them by hand for the database-free subset.
+unless defined?(Rails)
+  require_relative '../../../app/services/portfolios/skill_payload'
+  require_relative '../../../app/services/portfolios/coverage_lookup'
+  require_relative '../../../app/services/portfolios/skill_selection'
+end
 
 # This is the spec that guards the headline P0 from Step 3:
 # "Skills never discussed still get a fabricated L1-L5 score."
 RSpec.describe Portfolios::SkillSelection do
-  Coverage = Struct.new(:skill_id, :skill_label, :state)
+  # `let`, not a constant — a bare `Coverage = ...` here would bind on Object and
+  # collide with Ruby's own ::Coverage module.
+  let(:coverage) { Struct.new(:skill_id, :skill_label, :state) }
 
   let(:coverage_maps) do
     [
-      Coverage.new('sk-eng-001', 'React / Frontend Development', 'covered'),
-      Coverage.new('sk-eng-002', 'System Design', 'not_yet'),
-      Coverage.new(nil, 'Micro-frontend Architecture', 'initiated')
+      coverage.new('sk-eng-001', 'React / Frontend Development', 'covered'),
+      coverage.new('sk-eng-002', 'System Design', 'not_yet'),
+      coverage.new(nil, 'Micro-frontend Architecture', 'initiated')
     ]
   end
 

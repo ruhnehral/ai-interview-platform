@@ -14,17 +14,26 @@ BRANCH="chore/seeded-fault-$(date +%s)"
 echo "==> Creating scratch branch $BRANCH"
 git checkout -b "$BRANCH" || exit 1
 
-echo "==> Seeding fault 1/3: an unknown end_reason falls back to success (web)"
-perl -0pi -e 's/if \(!reason\) return "error";/if (!reason) return "completed"; \/\/ SEEDED FAULT/' \
+echo "==> Seeding fault 1/3: an unknown or missing end_reason falls back to success (web)"
+perl -0pi -e 's/  if \(!reason\) return "error";/  if (!reason) return "completed"; \/\/ SEEDED FAULT/' \
+  web/src/lib/interviewOutcome.ts
+perl -0pi -e 's/  return "error";\n\}/  return reason === "error" ? "error" : "completed"; \/\/ SEEDED FAULT\n}/' \
   web/src/lib/interviewOutcome.ts
 
 echo "==> Seeding fault 2/3: every skill counts as discussed (api)"
-perl -0pi -e 's/      map\.state\.to_s != NOT_DISCUSSED_STATE/      true # SEEDED FAULT/' \
+perl -0pi -e 's/      map = find\(skill_id, skill_label\)\n      return false if map\.nil\?\n\n      map\.state\.to_s != NOT_DISCUSSED_STATE/      find(skill_id, skill_label)\n      true # SEEDED FAULT/' \
   api/app/services/portfolios/coverage_lookup.rb
 
 echo "==> Seeding fault 3/3: a missing level collapses back to L1 (api)"
 perl -0pi -e 's/      return nil if number\.nil\?/      number = value.to_i if number.nil? # SEEDED FAULT/' \
   api/app/services/portfolios/skill_payload.rb
+
+echo "==> Confirming all three faults actually applied"
+grep -q "SEEDED FAULT" web/src/lib/interviewOutcome.ts \
+  && grep -c "SEEDED FAULT" web/src/lib/interviewOutcome.ts | grep -q 2 \
+  && grep -q "SEEDED FAULT" api/app/services/portfolios/coverage_lookup.rb \
+  && grep -q "SEEDED FAULT" api/app/services/portfolios/skill_payload.rb \
+  || { echo "FAILED to seed all faults — the source may have changed shape. Aborting."; exit 1; }
 
 git commit -qam "test(seeded-fault): break the P0 rules to prove the tests catch them"
 

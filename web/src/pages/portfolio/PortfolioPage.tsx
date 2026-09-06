@@ -59,10 +59,19 @@ export default function PortfolioPage() {
   // otherwise the page spins forever against a dead job.
   usePolling(fetchPortfolio, 5000, generating && !stalled);
 
+  const [retryError, setRetryError] = useState<string | null>(null);
+
   const retryGeneration = useCallback(async () => {
-    await sessionsApi.regeneratePortfolio(Number(sessionId));
-    setStalled(false);
-    setGenerating(true);
+    setRetryError(null);
+    try {
+      await sessionsApi.regeneratePortfolio(Number(sessionId));
+      setStalled(false);
+      setGenerating(true);
+    } catch {
+      // The row can change state between a poll and the click, so this is a real
+      // case, not a theoretical one. Say so instead of looking like a no-op.
+      setRetryError("Couldn't start generation again. Refresh the page and try once more.");
+    }
   }, [sessionId]);
 
   const handleOverrideSaved = (skillId: number, override: AssessorOverride) => {
@@ -191,6 +200,7 @@ export default function PortfolioPage() {
           <Button variant="outline" size="sm" onClick={retryGeneration}>
             <RefreshCw className="h-3.5 w-3.5 mr-1.5" /> Run generation again
           </Button>
+          {retryError && <p className="text-xs text-destructive">{retryError}</p>}
         </div>
       )}
 
@@ -201,8 +211,8 @@ export default function PortfolioPage() {
           <div>
             <p className="font-medium text-destructive">Portfolio generation failed</p>
             {portfolio.generation_error && (
-              /* break-all so a long error string cannot stretch the card on mobile */
-              <p className="text-xs text-destructive/80 mt-1 max-w-md mx-auto break-all">
+              /* break-words so a long error string wraps instead of stretching the card */
+              <p className="text-xs text-destructive/80 mt-1 max-w-md mx-auto break-words">
                 {portfolio.generation_error}
               </p>
             )}
@@ -215,6 +225,7 @@ export default function PortfolioPage() {
           <Button variant="outline" size="sm" onClick={retryGeneration}>
             <RefreshCw className="h-3.5 w-3.5 mr-1.5" /> Retry
           </Button>
+          {retryError && <p className="text-xs text-destructive">{retryError}</p>}
         </div>
       )}
 

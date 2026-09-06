@@ -165,6 +165,11 @@ module Portfolios
         candidate_id:      @session.candidate_id,
         generation_status: 'pending'
       )
+    rescue ActiveRecord::RecordNotUnique
+      # Two workers can reach this at the same time for a session that has no
+      # portfolio yet. portfolios.session_id is unique, so one of them loses the
+      # insert — it should pick up the winner's row, not fail the job.
+      @session.reload.portfolio
     end
 
     # Duplicate-job guard. Sidekiq retries, the EndHandler and a manual regenerate can

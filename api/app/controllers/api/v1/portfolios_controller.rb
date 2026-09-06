@@ -11,11 +11,14 @@ module Api
       # GET /api/v1/sessions/:id/portfolio
       def show
         if @portfolio.nil? || @portfolio.generating?
-          # `stalled` lets the assessor screen stop spinning forever on a portfolio
-          # whose worker died mid-run, and offer a retry instead.
+          # `stalled` lets the assessor screen stop polling a job that nothing is
+          # running. An ended session with no portfolio row at all is stalled too:
+          # EndHandler should have created one, so waiting will never resolve.
+          stalled = @portfolio ? @portfolio.generation_stale? : @session.ended?
+
           return render json: {
             status:   "generating",
-            stalled:  @portfolio&.generation_stale? || false,
+            stalled:  stalled,
             attempts: @portfolio&.generation_attempts || 0
           }, status: :accepted
         end
@@ -32,15 +35,17 @@ module Api
 
       # POST /api/v1/sessions/:id/portfolio/regenerate
       def regenerate
-        portfolio = @session.portfolio
+        # An ended session whose portfolio row was never created is recoverable too —
+        # create it here so the assessor's retry has something to work with.
+        portfolio = @session.portfolio || (@session.ended? && create_pending_portfolio)
 
-        if portfolio.nil?
+        if portfolio.blank?
           return json_error("No portfolio found for this session", :not_found)
         end
 
         # A portfolio stuck on `generating` (crashed worker) is just as regenerable as
         # a failed one — that is the case the Step 3 evidence screenshot was showing.
-        unless portfolio.failed? || portfolio.generation_stale?
+        unless portfolio.failed? || portfolio.generation_stale? || portfolio.generation_status == "pending"
           return json_error(
             "Portfolio can only be regenerated when generation has failed or stalled " \
             "(status: #{portfolio.generation_status})",
@@ -169,6 +174,15 @@ module Api
         end
       rescue ActiveRecord::RecordNotFound
         json_error("Portfolio not found", :not_found)
+      end
+
+      def create_pending_portfolio
+        @session.create_portfolio!(
+          candidate_id:      @session.candidate_id,
+          generation_status: "pending"
+        )
+      rescue ActiveRecord::RecordNotUnique
+        @session.reload.portfolio
       end
 
       def portfolio_json(portfolio)

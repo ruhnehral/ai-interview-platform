@@ -98,7 +98,7 @@ Gemini routinely splits one payload across two transcription chunks, so the seco
 
 `useExitGuard` covers both exit paths: `beforeunload` for tab close/refresh, and a sentinel history entry re-pushed on every `popstate` so the back button lands on our dialog instead of unmounting the interview. `ExitConfirmDialog` offers a real choice with copy that differs by entry point; Continue is the primary action because it is the safe one, and Escape is trapped so a stray key press cannot end a hiring interview.
 
-Choosing Continue leaves the session and the timer completely untouched. Full session *resume* is deliberately out of scope — Step 4, Option B under "No exit guard".
+Choosing Continue leaves the session and the timer completely untouched — the guard never touches `InterviewTimer`. Full session *resume* is deliberately out of scope — Step 4, Option B under "No exit guard".
 
 ### Web — assessor portfolio states (`feat(web): surface stalled and failed generation…`)
 

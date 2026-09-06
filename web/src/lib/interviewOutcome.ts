@@ -29,7 +29,3 @@ export function outcomeFromEndReason(reason?: string | null): InterviewOutcome {
   // a truncated frame) fall through to the honest answer, never to success.
   return "error";
 }
-
-export function isSuccessfulOutcome(outcome: InterviewOutcome): boolean {
-  return outcome !== "error";
-}

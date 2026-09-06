@@ -1,7 +1,11 @@
 # frozen_string_literal: true
 
 require 'spec_helper'
-require_relative '../../app/lib/transcript_sanitizer'
+# When the whole suite runs, Rails is already booted and Zeitwerk owns these
+# constants. Only load them by hand for the database-free subset.
+unless defined?(Rails)
+  require_relative '../../app/lib/transcript_sanitizer'
+end
 
 # Regression guard for the Step 3 P2 that was confirmed live in both the candidate's
 # chat bubble and the assessor's Live Monitor.

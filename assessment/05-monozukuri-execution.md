@@ -39,11 +39,13 @@ Step 4 §1 defined the criteria before any code was written. This is the traceab
 | Duplicate skill entries → last one wins, no duplicate rows | `SkillPayload#dedup_key` + `SkillSelection` | `skill_selection_spec` "collapses duplicate entries" |
 | Gemini errors during generation → mark `failed` with a reason, never stuck at `generating` | `Generator#mark_failed`, `Portfolio#generation_stale?` | `generator_spec` "marks the portfolio failed and re-raises when the model times out"; `portfolio_spec` "#generation_stale?" |
 | Interview reconnection fails → frontend actually uses `reason: error` | `useAudioWebSocket` → `outcomeFromEndReason` | `interviewOutcome.test.ts`; `InterviewCompleteScreen.test.tsx` "tells a candidate the truth" |
-| `level` as float / out of range → round + clamp, only for a discussed skill | `SkillPayload#normalize_level` | `skill_payload_spec` "rounds a float level", "clamps an out-of-range level" |
+| `level` as float / out of range → round + clamp | `SkillPayload#normalize_level` | `skill_payload_spec` "rounds a float level", "clamps an out-of-range level" |
+| …and only ever for a skill that was discussed | `SkillSelection#call` (the coverage gate runs after parsing) | `skill_selection_spec` "drops a skill the interview never touched" |
 | Malformed / partial JSON → fail that skill's parse, don't crash the job | `SkillPayload`, `Generator#parse_response` | `skill_selection_spec` "ignores a malformed entry"; `generator_spec` "fails with a generic reason when the model returns something that is not JSON" |
 | Coverage JSON split across chunks → buffer until structurally complete, no fragment reaches the transcript | `TranscriptSanitizer::Stream` | `transcript_sanitizer_spec` "holds back a payload split across two chunks", "survives a payload split across three chunks" |
 | `end_reason: completed` → success; `error` / `timeout` / unrecognised → distinct failure screen, never success | `outcomeFromEndReason` | `interviewOutcome.test.ts` "never reads a missing reason as success", "never reads an unrecognised future reason as success" |
-| Exit dialog: Continue → stays, timer unaffected; End → ends normally | `useExitGuard` + `ExitConfirmDialog` | `useExitGuard.test.ts`; `ExitConfirmDialog.test.tsx` |
+| Exit dialog: Continue → stays; End → ends normally | `useExitGuard` + `ExitConfirmDialog` | `useExitGuard.test.ts`; `ExitConfirmDialog.test.tsx` |
+| …timer unaffected on Continue | `useExitGuard` never touches `InterviewTimer`; Continue only closes the dialog | **not asserted by a test** — true by construction, verified by reading the diff |
 | UI polish: every state visually distinct, mobile-safe, long text handled | `InterviewCompleteScreen`, `PortfolioPage`, `ExitConfirmDialog` | `InterviewCompleteScreen.test.tsx` (three distinct `data-outcome` states) |
 
 Two Step 4 criteria have **no automated test** and I would rather say so than pad the table:
@@ -71,7 +73,7 @@ Full output: `assessment/step5/evidence/vitest-green.txt`.
 
 ### Backend
 
-Six spec files. Three of them require **no database and no Rails boot at all**, because the logic that decides a hiring outcome was deliberately extracted into plain Ruby objects:
+Six spec files. Four of them require **no database and no Rails boot at all**, because the logic that decides a hiring outcome was deliberately extracted into plain Ruby objects:
 
 | Spec | Needs a database? | What it guards |
 |---|---|---|
@@ -206,7 +208,27 @@ Plausible Rails. But `portfolios` in `db/schema.rb` has **no `created_at`/`updat
 
 **Fix:** a plain `update!` with only the two columns that exist.
 
-**The pattern across all three:** AI code is confidently idiomatic, and idiomatic is not the same as correct *for this codebase*. Every one of these was caught by checking the diff against something specific and local — the callers, the Gemfile, the schema — not by reading the generated code again.
+### 5.4 A timeout window shorter than the thing it was timing
+
+`Portfolio::STALE_GENERATION_AFTER` was first written as 10 minutes, with a comment claiming that was "generous enough to cover the 180s Gemini timeout plus Sidekiq's retry backoff."
+
+It wasn't. `Gemini::HttpClient#build_connection` configures `f.request :retry, max: 3` on top of `f.options.timeout = 180`, and `Faraday::TimeoutError` is in faraday-retry's default retriable set — so a single `generate_content` call can legitimately run for 4 × 180s plus backoff, around **12 minutes**. A perfectly healthy generation would have been declared stale at minute 10, and `claim_for_generation` would have handed the row to a second worker while the first was still writing to it. The duplicate-job guard would have *created* the duplicate-write race it exists to prevent.
+
+**How I caught it:** the constant is only meaningful relative to the client's real worst case, so I opened `Gemini::HttpClient` and did the arithmetic instead of trusting the comment that came with the code.
+
+**Fix:** 20 minutes, with the arithmetic written into the comment so the next person changing the Gemini timeout can see what it is coupled to.
+
+### 5.5 A test that could not run
+
+`skill_payload_spec.rb` defined its helper as `def payload(overrides = {}, discovered: false)` and called it as `payload('level' => nil)`. Under Ruby 3's keyword separation, a brace-less hash next to a keyword parameter is parsed as *keywords*, so 9 of the 12 examples raised `ArgumentError: unknown keyword: "level"` before asserting anything — including both examples that guard the headline P0.
+
+The production code was correct the whole time. The spec was not, and a spec that errors is worse than no spec, because the summary line still says something.
+
+**How I caught it:** a review pass that ran the assertions rather than reading them.
+
+**Fix:** the parameter is positional and every call site braces its hash explicitly, with a comment saying why.
+
+**The pattern across all five:** AI code is confidently idiomatic, and idiomatic is not the same as correct *for this codebase*. Every one of these was caught by checking the diff against something specific and local — the callers, the Gemfile, the schema, the client's own retry configuration, the interpreter's kwargs rules — not by reading the generated code again.
 
 ---
 
@@ -246,7 +268,8 @@ Stated up front rather than discovered in review:
 1. **`useExitGuard` leaves its sentinel history entry behind.** After the interview finishes, the candidate may need one extra back press to leave the page. Popping it automatically risks navigating them somewhere unintended, so I left it — a nuisance, on a screen that is finished anyway.
 2. **The local timer's `time_ceiling` is a display reason.** When the client-side timer expires, the completion screen says "Time is up" while the backend records `manual_candidate` for that path. The candidate is told the truth; the backend's own `time_ceiling` path is unchanged. Making the two agree means sending a reason on `end_session`, which is a backend protocol change I did not want inside a P0 fix.
 3. **`useAudioWebSocket` itself has no test.** It needs a WebSocket harness that does not exist in this repo yet. The logic it feeds is fully tested; the wiring is not, which is exactly how bug 5.1 got as far as it did.
-4. **No CI pipeline.** The suites run locally with one command each. Wiring GitHub Actions is the obvious next commit and did not fit this cycle.
+4. **The sanitizer holds back any unclosed `{`, not only a metadata one.** A candidate who says something with a stray opening brace has that turn delayed until the 600-character cap releases it. The cap makes the worst case bounded and short, but it is a trade-off, not a free win.
+5. **No CI pipeline.** The suites run locally with one command each. Wiring GitHub Actions is the obvious next commit and did not fit this cycle.
 
 ---
 
