@@ -11,7 +11,13 @@ module Api
       # GET /api/v1/sessions/:id/portfolio
       def show
         if @portfolio.nil? || @portfolio.generating?
-          return render json: { status: "generating" }, status: :accepted
+          # `stalled` lets the assessor screen stop spinning forever on a portfolio
+          # whose worker died mid-run, and offer a retry instead.
+          return render json: {
+            status:   "generating",
+            stalled:  @portfolio&.generation_stale? || false,
+            attempts: @portfolio&.generation_attempts || 0
+          }, status: :accepted
         end
 
         if @portfolio.failed?
@@ -32,8 +38,14 @@ module Api
           return json_error("No portfolio found for this session", :not_found)
         end
 
-        unless portfolio.failed?
-          return json_error("Portfolio can only be regenerated when status is 'failed'", :unprocessable_entity)
+        # A portfolio stuck on `generating` (crashed worker) is just as regenerable as
+        # a failed one — that is the case the Step 3 evidence screenshot was showing.
+        unless portfolio.failed? || portfolio.generation_stale?
+          return json_error(
+            "Portfolio can only be regenerated when generation has failed or stalled " \
+            "(status: #{portfolio.generation_status})",
+            :unprocessable_entity
+          )
         end
 
         portfolio.update!(generation_status: "pending", generation_error: nil)
@@ -167,6 +179,7 @@ module Api
           generation_status: portfolio.generation_status,
           generated_at:      portfolio.generated_at,
           generation_error:  portfolio.generation_error,
+          generation_attempts: portfolio.generation_attempts,
           skills:            portfolio.portfolio_skills.map(&method(:portfolio_skill_json)),
           overrides:         portfolio.assessor_overrides.map(&method(:override_json))
         }
