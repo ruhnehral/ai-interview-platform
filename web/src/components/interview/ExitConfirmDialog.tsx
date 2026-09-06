@@ -58,7 +58,7 @@ export default function ExitConfirmDialog({ open, source, onContinue, onEnd }: E
         <AlertDialogFooter>
           <AlertDialogCancel
             onClick={onEnd}
-            className="border-red-200 text-red-700 hover:bg-red-50 hover:text-red-800"
+            className="border-danger-border text-destructive hover:bg-danger-subtle hover:text-destructive"
           >
             End interview
           </AlertDialogCancel>

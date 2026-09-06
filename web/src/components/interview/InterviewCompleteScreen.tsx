@@ -22,22 +22,22 @@ const VARIANTS: Record<InterviewOutcome, Variant> = {
     icon: CheckCircle2,
     title: "Interview complete",
     body: "Thank you — your interview was recorded successfully. The hiring team will review your results and follow up with you.",
-    tone: "text-emerald-600",
-    ring: "bg-emerald-50 ring-emerald-100",
+    tone: "text-success",
+    ring: "bg-success-subtle ring-success-subtle",
   },
   timed_out: {
     icon: Clock,
     title: "Time is up",
     body: "The session reached its time limit and has ended. Everything you answered up to this point was recorded, and the hiring team will review it.",
-    tone: "text-amber-600",
-    ring: "bg-amber-50 ring-amber-100",
+    tone: "text-warning",
+    ring: "bg-warning-subtle ring-warning-subtle",
   },
   error: {
     icon: AlertTriangle,
     title: "The interview didn't finish",
     body: "Something went wrong and the session ended before it could be completed. Your results have not been submitted.",
-    tone: "text-red-600",
-    ring: "bg-red-50 ring-red-100",
+    tone: "text-destructive",
+    ring: "bg-danger-subtle ring-danger-subtle",
   },
 };
 
@@ -66,9 +66,9 @@ export default function InterviewCompleteScreen({ endReason, message }: Intervie
       <p className="mt-3 text-sm leading-relaxed text-muted-foreground break-words">{variant.body}</p>
 
       {outcome === "error" && (
-        <div className="mt-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-left">
-          <p className="text-sm font-medium text-red-900">What to do next</p>
-          <p className="mt-1 text-sm leading-relaxed text-red-800 break-words">
+        <div className="mt-6 rounded-lg border border-danger-border bg-danger-subtle px-4 py-3 text-left">
+          <p className="text-sm font-medium">What to do next</p>
+          <p className="mt-1 text-sm leading-relaxed text-muted-foreground break-words">
             {message?.trim() ||
               "Please contact your interviewer so they can send you a new invitation link."}
           </p>

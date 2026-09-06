@@ -189,11 +189,11 @@ export default function PortfolioPage() {
 
       {/* Stalled state — status says "generating" but no worker is alive */}
       {generating && stalled && (
-        <div className="border border-amber-300 bg-amber-50 rounded-lg p-6 space-y-3 text-center">
-          <AlertTriangle className="h-6 w-6 text-amber-600 mx-auto" />
+        <div className="rounded-lg border border-warning-border bg-warning-subtle p-6 space-y-3 text-center">
+          <AlertTriangle className="mx-auto h-6 w-6 text-warning" aria-hidden="true" />
           <div>
-            <p className="font-medium text-amber-900">Generation stopped responding</p>
-            <p className="text-sm text-amber-800 mt-1 max-w-md mx-auto leading-relaxed">
+            <p className="font-medium">Generation stopped responding</p>
+            <p className="mx-auto mt-1 max-w-md text-sm leading-relaxed text-muted-foreground">
               This portfolio has been stuck on "generating" for longer than expected, which
               means the job did not finish. Nothing was saved — you can safely run it again.
             </p>
@@ -207,8 +207,8 @@ export default function PortfolioPage() {
 
       {/* Failed state */}
       {!generating && portfolio?.generation_status === "failed" && (
-        <div className="border border-destructive/40 bg-destructive/5 rounded-lg p-6 space-y-3 text-center">
-          <AlertTriangle className="h-6 w-6 text-destructive mx-auto" />
+        <div className="rounded-lg border border-danger-border bg-danger-subtle p-6 space-y-3 text-center">
+          <AlertTriangle className="mx-auto h-6 w-6 text-destructive" aria-hidden="true" />
           <div>
             <p className="font-medium text-destructive">Portfolio generation failed</p>
             {portfolio.generation_error && (
