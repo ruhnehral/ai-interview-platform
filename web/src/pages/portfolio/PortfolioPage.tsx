@@ -9,7 +9,7 @@ import { sessionsApi } from "@/services/sessions";
 import { vacanciesApi } from "@/services/vacancies";
 import { portfoliosApi } from "@/services/portfolios";
 import { usePolling } from "@/hooks/usePolling";
-import { ArrowLeft, Download, Loader2, RefreshCw, Zap, FileText } from "lucide-react";
+import { ArrowLeft, AlertTriangle, Download, Loader2, RefreshCw, Zap, FileText } from "lucide-react";
 import type { Portfolio, AssessorOverride, Vacancy } from "@/types";
 
 export default function PortfolioPage() {
@@ -23,15 +23,19 @@ export default function PortfolioPage() {
   const [selectedVacancy, setSelectedVacancy] = useState<string>("");
   const [exporting, setExporting] = useState<"pdf" | "json" | null>(null);
   const [candidateName, setCandidateName] = useState<string | null>(null);
+  // Server-computed: the portfolio claims to be generating but no worker is alive.
+  const [stalled, setStalled] = useState(false);
 
   const fetchPortfolio = useCallback(async () => {
     const res = await sessionsApi.getPortfolio(Number(sessionId));
     const data = res.data as any;
     if (data.status === "generating" || data.portfolio?.generation_status === "generating" || data.portfolio?.generation_status === "pending") {
       setGenerating(true);
+      setStalled(Boolean(data.stalled));
     } else if (data.portfolio) {
       setPortfolio(data.portfolio);
       setGenerating(false);
+      setStalled(false);
       // Build overrides map
       const overrideMap: Record<number, AssessorOverride> = {};
       data.portfolio.overrides.forEach((o: AssessorOverride) => {
@@ -51,8 +55,15 @@ export default function PortfolioPage() {
       .finally(() => setLoading(false));
   }, [fetchPortfolio, sessionId]);
 
-  // Poll while generating
-  usePolling(fetchPortfolio, 5000, generating);
+  // Poll while generating — but stop once the server tells us nothing is running,
+  // otherwise the page spins forever against a dead job.
+  usePolling(fetchPortfolio, 5000, generating && !stalled);
+
+  const retryGeneration = useCallback(async () => {
+    await sessionsApi.regeneratePortfolio(Number(sessionId));
+    setStalled(false);
+    setGenerating(true);
+  }, [sessionId]);
 
   const handleOverrideSaved = (skillId: number, override: AssessorOverride) => {
     setOverrides((prev) => ({ ...prev, [skillId]: override }));
@@ -154,8 +165,8 @@ export default function PortfolioPage() {
       </div>
 
       {/* Generating state */}
-      {generating && (
-        <div className="border rounded-lg p-12 text-center space-y-3">
+      {generating && !stalled && (
+        <div className="border rounded-lg p-8 sm:p-12 text-center space-y-3">
           <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto" />
           <div>
             <p className="font-medium">Generating portfolio...</p>
@@ -166,18 +177,42 @@ export default function PortfolioPage() {
         </div>
       )}
 
+      {/* Stalled state — status says "generating" but no worker is alive */}
+      {generating && stalled && (
+        <div className="border border-amber-300 bg-amber-50 rounded-lg p-6 space-y-3 text-center">
+          <AlertTriangle className="h-6 w-6 text-amber-600 mx-auto" />
+          <div>
+            <p className="font-medium text-amber-900">Generation stopped responding</p>
+            <p className="text-sm text-amber-800 mt-1 max-w-md mx-auto leading-relaxed">
+              This portfolio has been stuck on "generating" for longer than expected, which
+              means the job did not finish. Nothing was saved — you can safely run it again.
+            </p>
+          </div>
+          <Button variant="outline" size="sm" onClick={retryGeneration}>
+            <RefreshCw className="h-3.5 w-3.5 mr-1.5" /> Run generation again
+          </Button>
+        </div>
+      )}
+
       {/* Failed state */}
       {!generating && portfolio?.generation_status === "failed" && (
-        <div className="border border-destructive/40 rounded-lg p-6 text-center space-y-3">
-          <p className="text-sm text-destructive">Portfolio generation failed.</p>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={async () => {
-              await sessionsApi.regeneratePortfolio(Number(sessionId));
-              setGenerating(true);
-            }}
-          >
+        <div className="border border-destructive/40 bg-destructive/5 rounded-lg p-6 space-y-3 text-center">
+          <AlertTriangle className="h-6 w-6 text-destructive mx-auto" />
+          <div>
+            <p className="font-medium text-destructive">Portfolio generation failed</p>
+            {portfolio.generation_error && (
+              /* break-all so a long error string cannot stretch the card on mobile */
+              <p className="text-xs text-destructive/80 mt-1 max-w-md mx-auto break-all">
+                {portfolio.generation_error}
+              </p>
+            )}
+            {typeof portfolio.generation_attempts === "number" && portfolio.generation_attempts > 0 && (
+              <p className="text-xs text-muted-foreground mt-1">
+                Attempt {portfolio.generation_attempts}
+              </p>
+            )}
+          </div>
+          <Button variant="outline" size="sm" onClick={retryGeneration}>
             <RefreshCw className="h-3.5 w-3.5 mr-1.5" /> Retry
           </Button>
         </div>
