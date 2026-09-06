@@ -1,7 +1,7 @@
 
- RUN  v3.2.7 /tmp/aip/ai-interview-platform/web
+ RUN  v3.2.7 /tmp/faultcheck2/web
 
- ❯ src/lib/__tests__/interviewOutcome.test.ts (8 tests | 2 failed) 8ms
+ ❯ src/lib/__tests__/interviewOutcome.test.ts (8 tests | 2 failed) 9ms
    ✓ outcomeFromEndReason > treats all_covered as a completed interview 1ms
    ✓ outcomeFromEndReason > treats manual_candidate as a completed interview 0ms
    ✓ outcomeFromEndReason > treats manual_assessor as a completed interview 0ms
@@ -12,20 +12,23 @@
    × outcomeFromEndReason > never reads an unrecognised future reason as success 1ms
      → expected 'completed' to be 'error' // Object.is equality
    ✓ outcomeFromEndReason > is tolerant of casing and stray whitespace from the wire 0ms
- ❯ src/components/interview/__tests__/InterviewCompleteScreen.test.tsx (5 tests | 1 failed) 65ms
+ ❯ src/components/interview/__tests__/InterviewCompleteScreen.test.tsx (5 tests | 1 failed) 57ms
    ✓ InterviewCompleteScreen > congratulates a candidate whose session actually completed 33ms
-   ✓ InterviewCompleteScreen > tells a candidate the truth when the session ended in error 8ms
-   ✓ InterviewCompleteScreen > surfaces the backend's own message when one is provided 6ms
+   ✓ InterviewCompleteScreen > tells a candidate the truth when the session ended in error 7ms
+   ✓ InterviewCompleteScreen > surfaces the backend's own message when one is provided 4ms
    ✓ InterviewCompleteScreen > shows a distinct screen when the time limit was reached 4ms
-   × InterviewCompleteScreen > defaults to the error screen when no reason reached the frontend 13ms
+   × InterviewCompleteScreen > defaults to the error screen when no reason reached the frontend 9ms
      → [2mexpect([22m[31melement[39m[2m).toHaveAttribute([22m[32m[32m"data-outcome"[32m[39m[2m, [22m[32m[32m"error"[32m[39m[2m) // element.getAttribute("data-outcome") === "error"[22m
 
 Expected the element to have attribute:
 [32m  data-outcome="error"[39m
 Received:
 [31m  data-outcome="completed"[39m
- ✓ src/components/interview/__tests__/ExitConfirmDialog.test.tsx (5 tests) 349ms
- ✓ src/hooks/__tests__/useExitGuard.test.ts (5 tests) 16ms
+ ✓ src/components/interview/__tests__/ExitConfirmDialog.test.tsx (5 tests) 319ms
+ ✓ src/components/portfolio/__tests__/NotAssessedPanel.test.tsx (5 tests) 48ms
+ ✓ src/components/interview/__tests__/StatusBanner.test.tsx (3 tests) 171ms
+ ✓ src/components/interview/__tests__/InterviewTimer.test.tsx (5 tests) 47ms
+ ✓ src/hooks/__tests__/useExitGuard.test.ts (5 tests) 15ms
 
 ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
 
@@ -79,8 +82,8 @@ Received:
 ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/3]⎯
 
 
- Test Files  2 failed | 2 passed (4)
-      Tests  3 failed | 20 passed (23)
-   Start at  04:59:20
-   Duration  1.69s (transform 144ms, setup 379ms, collect 356ms, tests 439ms, environment 1.95s, prepare 436ms)
+ Test Files  2 failed | 5 passed (7)
+      Tests  3 failed | 33 passed (36)
+   Start at  05:33:58
+   Duration  2.78s (transform 187ms, setup 651ms, collect 507ms, tests 667ms, environment 4.00s, prepare 676ms)
 

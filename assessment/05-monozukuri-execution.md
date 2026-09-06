@@ -147,6 +147,19 @@ The selection logic, run against the seeded faults, produced the fabricated scor
 12 runs, 28 assertions, 4 failures
 ```
 
+The not-assessed rules caught the same fault from the other side — with the
+coverage gate broken, a skill that was never discussed gets reported to the
+assessor as `no_rating` ("we asked, the AI gave nothing") instead of
+`not_discussed` ("we never asked"):
+
+```
+NA#test_not_discussed
+   Expected: :not_discussed
+     Actual: :no_rating
+
+5 runs, 9 assertions, 1 failures
+```
+
 Full output: `assessment/step5/evidence/seeded-fault-backend-logic.txt`.
 
 > **Environment note, stated plainly:** the machine I ran the seeded fault on had no network access to RubyGems and no PostgreSQL, so I could not execute `bundle exec rspec` there. The backend failures above were produced by running the same assertions against the same objects through Ruby's bundled Minitest. The RSpec specs in `spec/` are the deliverable and assert the same behaviour; `assessment/step5/seeded-fault.sh` reproduces the whole thing — seed, watch both real suites fail, revert — on a machine with the gems and a test database.
