@@ -81,6 +81,7 @@ export interface Portfolio {
   generation_status: "pending" | "generating" | "complete" | "failed";
   generated_at?: string;
   generation_error?: string;
+  generation_attempts?: number;
   skills: PortfolioSkill[];
   overrides: AssessorOverride[];
 }
@@ -164,6 +165,8 @@ export interface CandidateInfo {
   role_title: string;
   time_limit_min: number;
   session_status: string;
+  /** Present once the session has ended — lets a returning candidate be told the truth. */
+  end_reason?: string | null;
 }
 
 export interface PaginationMeta {

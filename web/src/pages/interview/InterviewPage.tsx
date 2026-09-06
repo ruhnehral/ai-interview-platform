@@ -16,6 +16,7 @@ import VoiceBars from "@/components/interview/VoiceBars";
 import InterviewTimer from "@/components/interview/InterviewTimer";
 import ConnectionStatus from "@/components/interview/ConnectionStatus";
 import TranscriptBubble from "@/components/interview/TranscriptBubble";
+import InterviewCompleteScreen from "@/components/interview/InterviewCompleteScreen";
 import { useAudioCapture } from "@/hooks/useAudioCapture";
 import { useAudioPlayback } from "@/hooks/useAudioPlayback";
 import { useAudioWebSocket } from "@/hooks/useAudioWebSocket";
@@ -39,6 +40,14 @@ export default function InterviewPage() {
   const [micMuted, setMicMuted] = useState(false);
   const micMutedRef = useRef(false);
 
+  // Why the session ended, as reported by the backend. Left undefined until we
+  // actually know — InterviewCompleteScreen reads "unknown" as a failure, never
+  // as success (Step 3, Candidate P0).
+  const [endReason, setEndReason] = useState<string | undefined>(undefined);
+  const [endMessage, setEndMessage] = useState<string | undefined>(undefined);
+
+  const transcriptEndRef = useRef<HTMLDivElement | null>(null);
+
   // Fetch candidate info
   useEffect(() => {
     if (!token) return;
@@ -46,9 +55,17 @@ export default function InterviewPage() {
       .then((res) => {
         setCandidateInfo(res.data);
         setSessionId(res.data.session_id);
-        if (res.data.session_status === "ended") setInterviewState("complete");
+        if (res.data.session_status === "ended") {
+          // A candidate reopening the link is told how their session actually ended.
+          setEndReason(res.data.end_reason ?? "error");
+          setInterviewState("complete");
+        }
       })
-      .catch(() => setInterviewState("complete"));
+      .catch(() => {
+        setEndReason("invalid_link");
+        setEndMessage("This interview link is invalid or has already expired. Please contact your interviewer for a new one.");
+        setInterviewState("complete");
+      });
   }, [token]);
 
   const muteRef = useRef<(() => void) | null>(null);
@@ -84,6 +101,13 @@ export default function InterviewPage() {
     }
   }, []);
 
+  // The backend's end_reason is the source of truth. A locally chosen reason (set in
+  // endInterview) is only a fallback for the case where we end the session ourselves.
+  const handleSessionEnd = useCallback((reason?: string, message?: string) => {
+    setEndReason(reason ?? "error");
+    if (message) setEndMessage(message);
+  }, []);
+
   const handleReconnected = useCallback(() => {
     if (reconnectedPromptTimerRef.current) clearTimeout(reconnectedPromptTimerRef.current);
     setReconnectedPrompt(true);
@@ -93,6 +117,12 @@ export default function InterviewPage() {
   const handleTranscript = useCallback((turn: Pick<TranscriptTurn, "speaker" | "text">) => {
     setTranscript((prev) => [...prev.slice(-9), turn]); // keep last 10
   }, []);
+
+  // Keep the newest turn in view. Without this, new turns render below the fold in a
+  // fixed-height scroll container and the candidate misses the AI's latest question.
+  useEffect(() => {
+    transcriptEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+  }, [transcript]);
 
   const { playChunk, stop: stopPlayback, scheduleAfterPlayback, waitForDrain, cancelDrain } = useAudioPlayback();
   const audioCompleteCalledRef = useRef(false);
@@ -138,6 +168,7 @@ export default function InterviewPage() {
     onStateChange: handleStateChange,
     onSpeakerChange: handleSpeakerChange,
     onReconnected: handleReconnected,
+    onSessionEnd: handleSessionEnd,
   });
 
   const { start: startCapture, stop: stopCapture, mute, unmute } = useAudioCapture({
@@ -170,7 +201,8 @@ export default function InterviewPage() {
     muteRef.current?.();
   }, [sessionId, connect, startCapture]);
 
-  const endInterview = useCallback(async () => {
+  const endInterview = useCallback(async (reason: string = "manual_candidate") => {
+    setEndReason((current) => current ?? reason);
     setInterviewState("ending");
     if (reconnectedPromptTimerRef.current) clearTimeout(reconnectedPromptTimerRef.current);
     stopCapture();
@@ -228,17 +260,7 @@ export default function InterviewPage() {
 
   // ── State F: Complete ───────────────────────────────────────────────────
   if (interviewState === "complete") {
-    return (
-      <div className="max-w-xl mx-auto px-4 py-16 text-center space-y-4">
-        <div className="text-4xl">✅</div>
-        <h2 className="text-xl font-semibold">Interview Complete</h2>
-        <p className="text-sm text-muted-foreground">
-          Thank you. The interview has been recorded.
-          <br />
-          The hiring team will review your results and follow up with you.
-        </p>
-      </div>
-    );
+    return <InterviewCompleteScreen endReason={endReason} message={endMessage} />;
   }
 
   // ── States B/C/D/E: Active interview ────────────────────────────────────
@@ -254,7 +276,7 @@ export default function InterviewPage() {
           <InterviewTimer
             totalSeconds={candidateInfo.time_limit_min * 60}
             running={interviewState === "active"}
-            onExpired={endInterview}
+            onExpired={() => endInterview("time_ceiling")}
           />
         )}
       </div>
@@ -262,13 +284,13 @@ export default function InterviewPage() {
       {/* Reconnecting banner */}
       {interviewState === "reconnecting" && (
         connectionLostLong ? (
-          <div className="flex items-center gap-2 text-sm bg-red-50 border border-red-200 text-red-800 rounded-lg px-4 py-2.5 mt-2">
-            <span className="animate-pulse">●</span>
+          <div className="flex items-start gap-2 text-sm bg-red-50 border border-red-200 text-red-800 rounded-lg px-4 py-2.5 mt-2">
+            <span className="animate-pulse leading-5">●</span>
             <span>Connection is taking too long to restore. Please wait, and contact the interviewer if this persists.</span>
           </div>
         ) : (
-          <div className="flex items-center gap-2 text-sm bg-yellow-50 border border-yellow-200 text-yellow-800 rounded-lg px-4 py-2.5 mt-2">
-            <span className="animate-pulse">●</span>
+          <div className="flex items-start gap-2 text-sm bg-yellow-50 border border-yellow-200 text-yellow-800 rounded-lg px-4 py-2.5 mt-2">
+            <span className="animate-pulse leading-5">●</span>
             <span>Briefly reconnecting — please wait a moment.</span>
           </div>
         )
@@ -276,9 +298,15 @@ export default function InterviewPage() {
 
       {/* Reconnected prompt */}
       {reconnectedPrompt && (
-        <div className="flex items-center justify-between text-sm bg-blue-50 border border-blue-200 text-blue-800 rounded-lg px-4 py-2.5 mt-2">
+        <div className="flex items-start justify-between gap-3 text-sm bg-blue-50 border border-blue-200 text-blue-800 rounded-lg px-4 py-2.5 mt-2">
           <span>Reconnected — please say <strong>"check"</strong> or continue your answer to resume.</span>
-          <button className="ml-3 text-blue-500 hover:text-blue-700 shrink-0" onClick={() => setReconnectedPrompt(false)}>✕</button>
+          <button
+            aria-label="Dismiss"
+            className="text-blue-500 hover:text-blue-700 shrink-0"
+            onClick={() => setReconnectedPrompt(false)}
+          >
+            ✕
+          </button>
         </div>
       )}
 
@@ -309,10 +337,11 @@ export default function InterviewPage() {
 
             {/* Transcript */}
             {transcript.length > 0 && (
-              <div className="w-full space-y-2 overflow-y-auto max-h-[60vh]">
+              <div className="w-full space-y-2 overflow-y-auto max-h-[60vh]" data-testid="transcript-panel">
                 {transcript.map((turn, i) => (
                   <TranscriptBubble key={i} speaker={turn.speaker} text={turn.text} />
                 ))}
+                <div ref={transcriptEndRef} />
               </div>
             )}
           </>
@@ -320,10 +349,10 @@ export default function InterviewPage() {
       </div>
 
       {/* Bottom bar */}
-      <div className="border-t py-3 flex items-center justify-between gap-4 sticky bottom-0 bg-white">
+      <div className="border-t py-3 flex items-center justify-between gap-3 sticky bottom-0 bg-white">
         <ConnectionStatus state={wsConnectionStatus} />
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3">
           <Button
             variant={micMuted ? "destructive" : "outline"}
             size="sm"
@@ -336,32 +365,32 @@ export default function InterviewPage() {
             )}
           </Button>
 
-        <AlertDialog>
-          <AlertDialogTrigger asChild>
-            <Button variant="outline" size="sm">End Interview</Button>
-          </AlertDialogTrigger>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>End interview?</AlertDialogTitle>
-              <AlertDialogDescription>
-                Are you sure you want to end the interview early?
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction onClick={endInterview}>End interview</AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-        {import.meta.env.DEV && (
-          <Button variant="outline" size="sm" className="text-xs opacity-50"
-            onClick={() => sendJson({ type: "debug_force_reconnect" })}>
-            ⚡ Force reconnect
-          </Button>
-        )}
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="outline" size="sm">End Interview</Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>End interview?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Are you sure you want to end the interview early?
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={() => endInterview("manual_candidate")}>End interview</AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+
+          {import.meta.env.DEV && (
+            <Button variant="outline" size="sm" className="text-xs opacity-50"
+              onClick={() => sendJson({ type: "debug_force_reconnect" })}>
+              ⚡ Force reconnect
+            </Button>
+          )}
         </div>
       </div>
-
     </div>
   );
 }
